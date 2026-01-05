@@ -454,8 +454,8 @@ export default function Home() {
                 value={privateNotes}
                 onChange={(e) => setPrivateNotes(e.target.value)}
                 placeholder="E-mail, şifre, kullanıcı adı veya çalışma notlarınızı buraya yazabilirsiniz..."
-                className="w-full p-3 text-sm border rounded-lg bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                rows={3}
+                className="w-full p-3 text-sm border rounded-lg bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary resize-y min-h-[100px]"
+                rows={4}
               />
             </div>
 
