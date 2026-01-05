@@ -272,7 +272,8 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
               placeholder="İşletmenizi kısaca tanımlayın veya URL'den otomatik oluşturun..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={4}
+              rows={5}
+              className="resize-y min-h-[120px]"
               required
             />
           </div>
