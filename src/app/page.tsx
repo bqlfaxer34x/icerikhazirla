@@ -197,15 +197,19 @@ export default function Home() {
   };
 
   const handleDeleteItem = (itemId: string) => {
-    setGroups(prev => prev.map(g => ({
-      ...g,
-      items: g.items.filter(item => item.id !== itemId)
-    })).filter(g => g.items.length > 0));
+    setGroups(prev => {
+      const newGroups = prev.map(g => ({
+        ...g,
+        items: g.items.filter(item => item.id !== itemId)
+      })).filter(g => g.items.length > 0);
 
-    // Eğer aktif grup silindiyse, önceki gruba geç
-    if (groups.length > 0 && activeGroupIndex >= groups.length - 1) {
-      setActiveGroupIndex(Math.max(0, activeGroupIndex - 1));
-    }
+      // Eğer aktif index artık geçersizse, son gruba geç
+      if (activeGroupIndex >= newGroups.length && newGroups.length > 0) {
+        setTimeout(() => setActiveGroupIndex(newGroups.length - 1), 0);
+      }
+
+      return newGroups;
+    });
   };
 
   const handleDeleteGroup = (groupId: string) => {
