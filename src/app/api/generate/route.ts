@@ -88,11 +88,19 @@ Yorumlar doğal ve spam gibi görünmemeli. Sadece içerikleri yaz, başka açı
 Her yorumu --- ile ayır.`,
 
     bio: `${baseInfo}
-Bu bilgileri kullanarak profil ve bio bölümlerinde kullanılabilecek ${batchSize} farklı tanıtım metni yaz.
-Her metin TAM OLARAK ${wordCount} kelime olmalı. Kelime sayısına kesinlikle uy!
+Web sitesi profil sayfaları, "Hakkında" bölümleri ve bio alanları için ${batchSize} farklı tanıtım metni yaz.
+Her metin TAM OLARAK ${wordCount} kelime olmalı.
 İçinde "${keyword}" kelimesi yerine şu HTML linki kullan: ${linkHtml}
-Metinler profesyonel ve özgün olmalı. Sadece içerikleri yaz, başka açıklama ekleme.
-Her metni --- ile ayır.`,
+
+KURALLAR:
+- "Biz", "Ben", "Firmamız" gibi 1. şahıs zamirleri KULLANMA
+- Marka adını 3. şahıs olarak kullan (örn: "${brand}, sektörde...")
+- Yorum veya forum yazısı tarzında YAZMA
+- Doğal, akıcı ve kaliteli bir dil kullan
+- Marka kimliğini destekleyen, profesyonel ama yapay olmayan içerik üret
+- Sadece bilgi ver, soru sorma veya tavsiye verme
+
+Sadece içerikleri yaz. Her metni --- ile ayır.`,
 
     article: `${baseInfo}
 Bu bilgileri kullanarak blog veya makale içinde kullanılabilecek ${batchSize} farklı paragraf yaz.

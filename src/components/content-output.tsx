@@ -19,18 +19,42 @@ interface ContentOutputProps {
 export function ContentOutput({ items, onDeleteItem, title }: ContentOutputProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = async (htmlContent: string, id: string) => {
+    // Plain text versiyonu oluştur (linkler korunarak)
+    const plainText = htmlContent
+      .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"');
+
     try {
-      await navigator.clipboard.writeText(text);
+      // HTML ve plain text olarak kopyala
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob
+        })
+      ]);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
+      // Fallback: sadece text kopyala
+      try {
+        await navigator.clipboard.writeText(plainText);
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = plainText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     }

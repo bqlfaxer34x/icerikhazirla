@@ -19,6 +19,7 @@ interface ContentGroup {
   keyword: string;
   contentType: string;
   items: ContentItem[];
+  singleBlockContent: string;
 }
 
 interface ProgressInfo {
@@ -44,7 +45,7 @@ export default function Home() {
   const [currentKeyword, setCurrentKeyword] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [singleBlockMode, setSingleBlockMode] = useState(false);
-  const [singleBlockContent, setSingleBlockContent] = useState("");
+  const [privateNotes, setPrivateNotes] = useState("");
 
   // Chrome sekmesinde keyword göster
   useEffect(() => {
@@ -63,10 +64,6 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     setSingleBlockMode(formData.singleBlockMode);
-
-    if (formData.singleBlockMode) {
-      setSingleBlockContent("");
-    }
 
     const BATCH_SIZE = 10;
     const totalCount = formData.totalCount;
@@ -106,6 +103,7 @@ export default function Home() {
             keyword: pair.keyword,
             contentType: formData.contentType,
             items: [],
+            singleBlockContent: "",
           };
 
           setGroups(prev => {
@@ -153,30 +151,27 @@ export default function Home() {
             throw new Error(result.error || "Bir hata oluştu");
           }
 
-          // Yeni içerikleri işle
+          // Yeni içerikleri benzersiz ID'lerle ekle (her zaman gruplara ekle)
+          const newItems: ContentItem[] = result.data.items.map((content: string) => ({
+            id: generateUniqueId(),
+            content,
+            type: formData.contentType,
+            groupId,
+          }));
+
+          // Gruba yeni içerikleri ekle
+          setGroups(prev => prev.map(g =>
+            g.id === groupId
+              ? { ...g, items: [...g.items, ...newItems] }
+              : g
+          ));
+
+          // Tek parça modunda: Grubun singleBlockContent'ine ekle
           if (formData.singleBlockMode) {
-            // Tek parça modunda: içerikleri text olarak birleştir
-            const newContent = result.data.items.map((content: string) => {
-              // HTML linklerini plain text'e çevir ama linki koru
-              return content
-                .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
-                .replace(/<[^>]+>/g, '');
-            }).join("\n\n");
-
-            setSingleBlockContent(prev => prev + (prev ? "\n\n" : "") + newContent);
-          } else {
-            // Normal mod: kartlar halinde göster
-            const newItems: ContentItem[] = result.data.items.map((content: string) => ({
-              id: generateUniqueId(),
-              content,
-              type: formData.contentType,
-              groupId,
-            }));
-
-            // Gruba yeni içerikleri ekle
+            const newContent = result.data.items.join("\n\n");
             setGroups(prev => prev.map(g =>
               g.id === groupId
-                ? { ...g, items: [...g.items, ...newItems] }
+                ? { ...g, singleBlockContent: g.singleBlockContent + (g.singleBlockContent ? "\n\n" : "") + newContent }
                 : g
             ));
           }
@@ -438,6 +433,28 @@ export default function Home() {
               </div>
             )}
 
+            {/* Özel Notlar Bölümü */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Özel Notlar</h3>
+                {privateNotes && (
+                  <button
+                    onClick={() => setPrivateNotes("")}
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    Temizle
+                  </button>
+                )}
+              </div>
+              <textarea
+                value={privateNotes}
+                onChange={(e) => setPrivateNotes(e.target.value)}
+                placeholder="E-mail, şifre, kullanıcı adı veya çalışma notlarınızı buraya yazabilirsiniz..."
+                className="w-full p-3 text-sm border rounded-lg bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                rows={3}
+              />
+            </div>
+
             {isLoading && groups.length === 0 && (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
@@ -450,7 +467,7 @@ export default function Home() {
             )}
 
             {/* Tek Parça Modu */}
-            {singleBlockMode && singleBlockContent && (
+            {singleBlockMode && activeGroup && activeGroup.singleBlockContent && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Düzenlenebilir İçerik</h3>
@@ -458,35 +475,53 @@ export default function Home() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(singleBlockContent);
+                      onClick={async () => {
+                        // HTML olarak kopyala (yapıştırınca link olarak gelir)
+                        const htmlContent = activeGroup.singleBlockContent.replace(/\n\n/g, '<br><br>');
+                        const blob = new Blob([htmlContent], { type: 'text/html' });
+                        const plainText = activeGroup.singleBlockContent
+                          .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2')
+                          .replace(/<[^>]+>/g, '');
+
+                        try {
+                          await navigator.clipboard.write([
+                            new ClipboardItem({
+                              'text/html': blob,
+                              'text/plain': new Blob([plainText], { type: 'text/plain' })
+                            })
+                          ]);
+                        } catch {
+                          // Fallback: sadece text kopyala
+                          navigator.clipboard.writeText(plainText);
+                        }
                       }}
                     >
-                      Tümünü Kopyala
+                      Kopyala (Linkli)
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        const blob = new Blob([singleBlockContent], { type: 'text/plain' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `icerikler_${new Date().toISOString().slice(0,10)}.txt`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
+                        // Plain text kopyala (linkler URL ile)
+                        const plainText = activeGroup.singleBlockContent
+                          .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
+                          .replace(/<[^>]+>/g, '')
+                          .replace(/\n\n+/g, '\n\n');
+                        navigator.clipboard.writeText(plainText);
                       }}
                     >
-                      TXT İndir
+                      Kopyala (Düz Metin)
                     </Button>
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => {
-                        if (confirm("Tüm içerik silinecek. Emin misiniz?")) {
-                          setSingleBlockContent("");
+                        if (confirm("Tek parça içerik silinecek. Emin misiniz?")) {
+                          setGroups(prev => prev.map(g =>
+                            g.id === activeGroup.id
+                              ? { ...g, singleBlockContent: "" }
+                              : g
+                          ));
                         }
                       }}
                     >
@@ -494,14 +529,39 @@ export default function Home() {
                     </Button>
                   </div>
                 </div>
-                <textarea
-                  value={singleBlockContent}
-                  onChange={(e) => setSingleBlockContent(e.target.value)}
-                  className="w-full h-[500px] p-4 border rounded-lg font-mono text-sm bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="İçerikler burada görünecek..."
+                <div
+                  key={activeGroup.id}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={(e) => {
+                    const newContent = e.currentTarget.innerHTML;
+                    setGroups(prev => prev.map(g =>
+                      g.id === activeGroup.id
+                        ? { ...g, singleBlockContent: newContent }
+                        : g
+                    ));
+                  }}
+                  onCopy={(e) => {
+                    // Seçili HTML'i kopyala
+                    const selection = window.getSelection();
+                    if (selection && selection.rangeCount > 0) {
+                      const range = selection.getRangeAt(0);
+                      const div = document.createElement('div');
+                      div.appendChild(range.cloneContents());
+                      const html = div.innerHTML;
+                      const text = div.textContent || '';
+
+                      e.clipboardData?.setData('text/html', html);
+                      e.clipboardData?.setData('text/plain', text);
+                      e.preventDefault();
+                    }
+                  }}
+                  dangerouslySetInnerHTML={{ __html: activeGroup.singleBlockContent.replace(/\n\n/g, '<br><br>') }}
+                  className="w-full min-h-[500px] max-h-[700px] overflow-y-auto p-4 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary content-display"
+                  style={{ whiteSpace: 'pre-wrap' }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {singleBlockContent.split(/\n\n+/).filter(p => p.trim()).length} paragraf • {singleBlockContent.length} karakter
+                  Düzenlemek için içeriğe tıklayın • Linkler tıklanabilir
                 </p>
               </div>
             )}
@@ -515,7 +575,7 @@ export default function Home() {
               />
             )}
 
-            {groups.length === 0 && !singleBlockContent && !isLoading && !error && (
+            {groups.length === 0 && !isLoading && !error && (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <p>
                   Formu doldurup &quot;İçerik Oluştur&quot; butonuna tıklayın
