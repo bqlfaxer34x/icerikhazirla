@@ -65,19 +65,32 @@ export default function Home() {
     const totalCount = formData.totalCount;
     const batches = Math.ceil(totalCount / BATCH_SIZE);
 
-    // Yeni grup oluştur
-    const groupId = generateUniqueId();
-    const newGroup: ContentGroup = {
-      id: groupId,
-      url: formData.url,
-      keyword: formData.keyword,
-      contentType: formData.contentType,
-      items: [],
-    };
+    // Aynı URL ve keyword ile mevcut grup var mı kontrol et
+    const existingGroupIndex = groups.findIndex(
+      g => g.url === formData.url && g.keyword === formData.keyword
+    );
 
-    // Grubu ekle ve aktif yap
-    setGroups(prev => [...prev, newGroup]);
-    setActiveGroupIndex(groups.length);
+    let groupId: string;
+
+    if (existingGroupIndex !== -1) {
+      // Mevcut gruba ekle
+      groupId = groups[existingGroupIndex].id;
+      setActiveGroupIndex(existingGroupIndex);
+    } else {
+      // Yeni grup oluştur
+      groupId = generateUniqueId();
+      const newGroup: ContentGroup = {
+        id: groupId,
+        url: formData.url,
+        keyword: formData.keyword,
+        contentType: formData.contentType,
+        items: [],
+      };
+
+      // Grubu ekle ve aktif yap
+      setGroups(prev => [...prev, newGroup]);
+      setActiveGroupIndex(groups.length);
+    }
 
     try {
       for (let i = 0; i < batches; i++) {
