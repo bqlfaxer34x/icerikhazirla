@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { ContentForm, FormData } from "@/components/content-form";
 import { ContentOutput } from "@/components/content-output";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ContentItem {
   id: string;
@@ -22,9 +22,11 @@ interface ContentGroup {
 }
 
 interface ProgressInfo {
+  currentPair: number;
+  totalPairs: number;
+  currentKeyword: string;
   completed: number;
   total: number;
-  remaining: number;
 }
 
 const contentTypeLabels: Record<string, string> = {
@@ -58,96 +60,124 @@ export default function Home() {
   const handleGenerate = async (formData: FormData) => {
     setIsLoading(true);
     setError(null);
-    setCurrentKeyword(formData.keyword);
-    setProgress({ completed: 0, total: formData.totalCount, remaining: formData.totalCount });
 
     const BATCH_SIZE = 10;
     const totalCount = formData.totalCount;
-    const batches = Math.ceil(totalCount / BATCH_SIZE);
-
-    // Aynı URL ve keyword ile mevcut grup var mı kontrol et
-    const existingGroupIndex = groups.findIndex(
-      g => g.url === formData.url && g.keyword === formData.keyword
-    );
-
-    let groupId: string;
-
-    if (existingGroupIndex !== -1) {
-      // Mevcut gruba ekle
-      groupId = groups[existingGroupIndex].id;
-      setActiveGroupIndex(existingGroupIndex);
-    } else {
-      // Yeni grup oluştur
-      groupId = generateUniqueId();
-      const newGroup: ContentGroup = {
-        id: groupId,
-        url: formData.url,
-        keyword: formData.keyword,
-        contentType: formData.contentType,
-        items: [],
-      };
-
-      // Grubu ekle ve aktif yap
-      setGroups(prev => [...prev, newGroup]);
-      setActiveGroupIndex(groups.length);
-    }
+    const pairs = formData.urlKeywordPairs;
+    const totalPairs = pairs.length;
 
     try {
-      for (let i = 0; i < batches; i++) {
-        const currentBatchSize = Math.min(BATCH_SIZE, totalCount - (i * BATCH_SIZE));
-        const completed = i * BATCH_SIZE;
+      // Her URL:KELIME çifti için sırayla üretim yap
+      for (let pairIndex = 0; pairIndex < totalPairs; pairIndex++) {
+        const pair = pairs[pairIndex];
+        setCurrentKeyword(pair.keyword);
 
-        setProgress({
-          completed,
-          total: totalCount,
-          remaining: totalCount - completed,
+        // Aynı URL ve keyword ile mevcut grup var mı kontrol et
+        let currentGroups = groups;
+        // State güncellemelerini senkronize almak için fonksiyon kullan
+        setGroups(prev => {
+          currentGroups = prev;
+          return prev;
         });
 
-        const response = await fetch("/api/generate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...formData,
-            batchSize: currentBatchSize,
-          }),
-        });
+        const existingGroupIndex = currentGroups.findIndex(
+          g => g.url === pair.url && g.keyword === pair.keyword
+        );
 
-        const result = await response.json();
+        let groupId: string;
 
-        if (!result.success) {
-          throw new Error(result.error || "Bir hata oluştu");
+        if (existingGroupIndex !== -1) {
+          // Mevcut gruba ekle
+          groupId = currentGroups[existingGroupIndex].id;
+          setActiveGroupIndex(existingGroupIndex);
+        } else {
+          // Yeni grup oluştur
+          groupId = generateUniqueId();
+          const newGroup: ContentGroup = {
+            id: groupId,
+            url: pair.url,
+            keyword: pair.keyword,
+            contentType: formData.contentType,
+            items: [],
+          };
+
+          setGroups(prev => {
+            const newGroups = [...prev, newGroup];
+            setActiveGroupIndex(newGroups.length - 1);
+            return newGroups;
+          });
         }
 
-        // Yeni içerikleri benzersiz ID'lerle ekle
-        const newItems: ContentItem[] = result.data.items.map((content: string) => ({
-          id: generateUniqueId(),
-          content,
-          type: formData.contentType,
-          groupId,
-        }));
+        // Batch'ler halinde içerik üret
+        const batches = Math.ceil(totalCount / BATCH_SIZE);
 
-        // Gruba yeni içerikleri ekle
-        setGroups(prev => prev.map(g =>
-          g.id === groupId
-            ? { ...g, items: [...g.items, ...newItems] }
-            : g
-        ));
+        for (let i = 0; i < batches; i++) {
+          const currentBatchSize = Math.min(BATCH_SIZE, totalCount - (i * BATCH_SIZE));
+          const completed = i * BATCH_SIZE;
 
-        // İlerleme güncelle
-        const newCompleted = (i + 1) * BATCH_SIZE;
-        setProgress({
-          completed: Math.min(newCompleted, totalCount),
-          total: totalCount,
-          remaining: Math.max(0, totalCount - newCompleted),
-        });
+          setProgress({
+            currentPair: pairIndex + 1,
+            totalPairs,
+            currentKeyword: pair.keyword,
+            completed,
+            total: totalCount,
+          });
+
+          const response = await fetch("/api/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: pair.url,
+              keyword: pair.keyword,
+              brand: formData.brand,
+              description: formData.description,
+              language: formData.language,
+              contentType: formData.contentType,
+              wordCount: formData.wordCount,
+              batchSize: currentBatchSize,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (!result.success) {
+            throw new Error(result.error || "Bir hata oluştu");
+          }
+
+          // Yeni içerikleri benzersiz ID'lerle ekle
+          const newItems: ContentItem[] = result.data.items.map((content: string) => ({
+            id: generateUniqueId(),
+            content,
+            type: formData.contentType,
+            groupId,
+          }));
+
+          // Gruba yeni içerikleri ekle
+          setGroups(prev => prev.map(g =>
+            g.id === groupId
+              ? { ...g, items: [...g.items, ...newItems] }
+              : g
+          ));
+
+          // İlerleme güncelle
+          const newCompleted = (i + 1) * BATCH_SIZE;
+          setProgress({
+            currentPair: pairIndex + 1,
+            totalPairs,
+            currentKeyword: pair.keyword,
+            completed: Math.min(newCompleted, totalCount),
+            total: totalCount,
+          });
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bir hata oluştu");
     } finally {
       setIsLoading(false);
       setProgress(null);
+      setCurrentKeyword(null);
     }
   };
 
@@ -261,13 +291,13 @@ export default function Home() {
             {/* İlerleme durumu */}
             {progress && (
               <div className="bg-primary/10 border border-primary text-primary px-4 py-3 rounded-lg mb-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold">
-                    {progress.completed}/{progress.total}
+                    URL {progress.currentPair}/{progress.totalPairs}: {progress.currentKeyword}
                   </span>
-                  <span>Kalan: {progress.remaining}</span>
+                  <span>{progress.completed}/{progress.total}</span>
                 </div>
-                <div className="w-full bg-primary/20 rounded-full h-2 mt-2">
+                <div className="w-full bg-primary/20 rounded-full h-2">
                   <div
                     className="bg-primary h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(progress.completed / progress.total) * 100}%` }}

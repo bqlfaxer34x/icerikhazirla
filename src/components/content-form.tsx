@@ -19,9 +19,13 @@ interface ContentFormProps {
   isLoading: boolean;
 }
 
-export interface FormData {
+export interface UrlKeywordPair {
   url: string;
   keyword: string;
+}
+
+export interface FormData {
+  urlKeywordPairs: UrlKeywordPair[];
   brand: string;
   description: string;
   language: string;
@@ -63,7 +67,7 @@ const wordCounts = [
 const totalCounts = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
-  const [urlKeyword, setUrlKeyword] = useState("");
+  const [urlKeywordsText, setUrlKeywordsText] = useState("");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [language, setLanguage] = useState("Türkçe");
@@ -72,7 +76,10 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
   const [totalCount, setTotalCount] = useState("10");
   const [isDescribing, setIsDescribing] = useState(false);
 
-  const extractUrl = (): string | null => {
+  // Satır sayısını hesapla
+  const lineCount = urlKeywordsText.split("\n").filter(line => line.trim()).length;
+
+  const extractUrlFromString = (urlKeyword: string): string | null => {
     if (!urlKeyword.trim()) return null;
 
     const parts = urlKeyword.split(":");
@@ -84,9 +91,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
     const rest = parts.slice(1).join(":");
     const lastColonIndex = rest.lastIndexOf(":");
 
-    // Eğer keyword için ayırıcı colon yoksa, tüm URL'yi döndür
     if (lastColonIndex === -1) {
-      // URL'nin tamamını al (keyword olmadan)
       return `${protocol}:${rest}`.trim();
     }
 
@@ -95,14 +100,14 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
   };
 
   const handleAutoDescribe = async () => {
-    const url = extractUrl();
+    const firstLine = urlKeywordsText.split("\n").find(line => line.trim());
+    const url = firstLine ? extractUrlFromString(firstLine) : null;
 
     if (!url) {
       alert("Önce geçerli bir URL girin.\n\nÖrnek: https://example.com:anahtar kelime");
       return;
     }
 
-    console.log("Extracted URL:", url);
     setIsDescribing(true);
 
     try {
@@ -127,39 +132,50 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const parseUrlKeyword = (urlKeyword: string): UrlKeywordPair | null => {
     const parts = urlKeyword.split(":");
-    if (parts.length < 2) {
-      alert("Lütfen URL:KELIME formatında girin (örn: https://site.com:anahtar kelime)");
-      return;
-    }
+    if (parts.length < 2) return null;
 
     const protocol = parts[0];
     const rest = parts.slice(1).join(":");
     const lastColonIndex = rest.lastIndexOf(":");
 
-    let url: string;
-    let keyword: string;
+    if (protocol !== "https" && protocol !== "http") return null;
 
-    if (protocol === "https" || protocol === "http") {
-      const urlPart = rest.substring(0, lastColonIndex);
-      keyword = rest.substring(lastColonIndex + 1).trim();
-      url = `${protocol}:${urlPart}`;
-    } else {
-      alert("Geçerli bir URL girin (http:// veya https:// ile başlamalı)");
-      return;
+    const urlPart = rest.substring(0, lastColonIndex);
+    const keyword = rest.substring(lastColonIndex + 1).trim();
+    const url = `${protocol}:${urlPart}`;
+
+    if (!url || !keyword) return null;
+
+    return { url, keyword };
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const lines = urlKeywordsText.split("\n");
+    const pairs: UrlKeywordPair[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const pair = parseUrlKeyword(line);
+      if (!pair) {
+        alert(`Satır ${i + 1}: Geçersiz format.\n\nDoğru format: https://site.com:anahtar kelime`);
+        return;
+      }
+      pairs.push(pair);
     }
 
-    if (!url || !keyword) {
-      alert("Lütfen URL:KELIME formatında girin");
+    if (pairs.length === 0) {
+      alert("En az bir URL:KELIME girmelisiniz");
       return;
     }
 
     onGenerate({
-      url,
-      keyword,
+      urlKeywordPairs: pairs,
       brand,
       description,
       language,
@@ -177,16 +193,24 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="urlKeyword">URL:KELIME</Label>
-            <Input
-              id="urlKeyword"
-              placeholder="https://example.com:anahtar kelime"
-              value={urlKeyword}
-              onChange={(e) => setUrlKeyword(e.target.value)}
+            <div className="flex items-center justify-between">
+              <Label>URL:KELIME Listesi</Label>
+              {lineCount > 0 && (
+                <span className="text-xs bg-primary/10 px-2 py-1 rounded">
+                  {lineCount} adet
+                </span>
+              )}
+            </div>
+            <Textarea
+              placeholder="Her satıra bir tane yazın:&#10;https://site1.com:anahtar kelime 1&#10;https://site2.com:anahtar kelime 2&#10;https://site3.com:anahtar kelime 3"
+              value={urlKeywordsText}
+              onChange={(e) => setUrlKeywordsText(e.target.value)}
+              rows={5}
+              className="font-mono text-sm"
               required
             />
             <p className="text-sm text-muted-foreground">
-              Hedef URL ve anchor text&apos;i iki nokta ile ayırarak girin
+              Her satır için <strong>{totalCount}</strong> adet içerik üretilir
             </p>
           </div>
 
@@ -199,6 +223,9 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
               onChange={(e) => setBrand(e.target.value)}
               required
             />
+            <p className="text-xs text-muted-foreground">
+              (Büyük/küçük harf duyarlıdır. Örn: "Acme Ltd" şeklinde doğru yazın)
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -209,7 +236,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleAutoDescribe}
-                disabled={isDescribing || !urlKeyword}
+                disabled={isDescribing || !urlKeywordsText.trim()}
               >
                 {isDescribing ? "Analiz ediliyor..." : "URL'den Oluştur"}
               </Button>
@@ -274,7 +301,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="totalCount">Toplam Adet</Label>
+              <Label htmlFor="totalCount">Her Biri İçin Adet</Label>
               <Select value={totalCount} onValueChange={setTotalCount}>
                 <SelectTrigger>
                   <SelectValue placeholder="Kaç adet?" />
@@ -290,7 +317,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Token limiti için 10&apos;ar 10&apos;ar üretilir
+            {lineCount > 0 ? `${lineCount} URL × ${totalCount} adet = Toplam ${lineCount * parseInt(totalCount)} içerik üretilecek` : "URL:KELIME listesi girin"}
           </p>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
