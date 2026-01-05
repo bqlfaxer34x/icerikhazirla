@@ -172,35 +172,42 @@ export default function Home() {
     const allItems = groups.flatMap(g => g.items);
     if (allItems.length === 0) return;
 
-    let fullContent = "";
+    // HTML formatında Word belgesi oluştur (linkler tıklanabilir olacak)
+    let htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
+  .group-header { font-weight: bold; font-size: 14pt; margin-top: 20px; border-bottom: 2px solid #333; padding-bottom: 5px; }
+  .group-type { font-size: 11pt; color: #666; margin-bottom: 15px; }
+  .content-item { margin-bottom: 24px; }
+  a { color: #0066cc; text-decoration: underline; }
+</style>
+</head>
+<body>
+`;
 
     groups.forEach((group, gIndex) => {
-      const groupTitle = `${group.keyword} (${group.url})`;
       const typeLabel = contentTypeLabels[group.contentType] || "İçerikler";
 
-      fullContent += `${'='.repeat(50)}\n`;
-      fullContent += `${groupTitle}\n`;
-      fullContent += `Tür: ${typeLabel}\n`;
-      fullContent += `${'='.repeat(50)}\n\n`;
+      htmlContent += `<div class="group-header">${group.keyword} - ${group.url}</div>`;
+      htmlContent += `<div class="group-type">Tür: ${typeLabel}</div>`;
 
-      group.items.forEach((item, index) => {
-        const plainText = item.content
-          .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"');
-        fullContent += `${index + 1}. ${plainText}\n\n`;
+      group.items.forEach((item) => {
+        // İçeriği olduğu gibi ekle (HTML linkler korunacak)
+        htmlContent += `<div class="content-item">${item.content}</div>`;
       });
 
       if (gIndex < groups.length - 1) {
-        fullContent += '\n\n';
+        htmlContent += `<hr style="margin: 30px 0;">`;
       }
     });
 
-    const blob = new Blob([fullContent], { type: 'application/msword' });
+    htmlContent += `</body></html>`;
+
+    const blob = new Blob([htmlContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

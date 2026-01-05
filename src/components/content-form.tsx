@@ -67,7 +67,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [language, setLanguage] = useState("Türkçe");
-  const [contentType, setContentType] = useState("forum");
+  const [contentType, setContentType] = useState("bio");
   const [wordCount, setWordCount] = useState("100");
   const [totalCount, setTotalCount] = useState("10");
   const [isDescribing, setIsDescribing] = useState(false);
