@@ -32,6 +32,7 @@ export interface FormData {
   contentType: string;
   wordCount: number;
   totalCount: number;
+  singleBlockMode: boolean;
 }
 
 const languages = [
@@ -75,9 +76,17 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
   const [wordCount, setWordCount] = useState("100");
   const [totalCount, setTotalCount] = useState("10");
   const [isDescribing, setIsDescribing] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [singleBlockMode, setSingleBlockMode] = useState(false);
 
   // Satır sayısını hesapla
   const lineCount = urlKeywordsText.split("\n").filter(line => line.trim()).length;
+
+  // Hata mesajını otomatik temizle
+  const showError = (message: string) => {
+    setFormError(message);
+    setTimeout(() => setFormError(null), 5000);
+  };
 
   const extractUrlFromString = (urlKeyword: string): string | null => {
     if (!urlKeyword.trim()) return null;
@@ -100,11 +109,12 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
   };
 
   const handleAutoDescribe = async () => {
+    setFormError(null);
     const firstLine = urlKeywordsText.split("\n").find(line => line.trim());
     const url = firstLine ? extractUrlFromString(firstLine) : null;
 
     if (!url) {
-      alert("Önce geçerli bir URL girin.\n\nÖrnek: https://example.com:anahtar kelime");
+      showError("Önce geçerli bir URL girin. Örnek: https://example.com:anahtar kelime");
       return;
     }
 
@@ -126,7 +136,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
       setDescription(result.description);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Bir hata oluştu";
-      alert(`Hata: ${errorMsg}\n\nURL: ${url}`);
+      showError(errorMsg);
     } finally {
       setIsDescribing(false);
     }
@@ -153,6 +163,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     const lines = urlKeywordsText.split("\n");
     const pairs: UrlKeywordPair[] = [];
@@ -163,14 +174,14 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
 
       const pair = parseUrlKeyword(line);
       if (!pair) {
-        alert(`Satır ${i + 1}: Geçersiz format.\n\nDoğru format: https://site.com:anahtar kelime`);
+        showError(`Satır ${i + 1}: Geçersiz format. Doğru format: https://site.com:anahtar kelime`);
         return;
       }
       pairs.push(pair);
     }
 
     if (pairs.length === 0) {
-      alert("En az bir URL:KELIME girmelisiniz");
+      showError("En az bir URL:KELIME girmelisiniz");
       return;
     }
 
@@ -182,6 +193,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
       contentType,
       wordCount: parseInt(wordCount),
       totalCount: parseInt(totalCount),
+      singleBlockMode,
     });
   };
 
@@ -192,6 +204,20 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Hata mesajı */}
+          {formError && (
+            <div className="bg-destructive/10 border border-destructive text-destructive text-sm px-3 py-2 rounded-lg flex items-center justify-between">
+              <span>{formError}</span>
+              <button
+                type="button"
+                onClick={() => setFormError(null)}
+                className="ml-2 text-destructive hover:text-destructive/80 font-bold"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>URL:KELIME Listesi</Label>
@@ -319,6 +345,32 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
           <p className="text-xs text-muted-foreground">
             {lineCount > 0 ? `${lineCount} URL × ${totalCount} adet = Toplam ${lineCount * parseInt(totalCount)} içerik üretilecek` : "URL:KELIME listesi girin"}
           </p>
+
+          {/* Tek Parça Modu */}
+          <div
+            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+              singleBlockMode
+                ? "bg-primary/10 border-primary"
+                : "bg-muted/30 border-transparent hover:border-muted-foreground/20"
+            }`}
+            onClick={() => setSingleBlockMode(!singleBlockMode)}
+          >
+            <div
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                singleBlockMode
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : "border-muted-foreground/50"
+              }`}
+            >
+              {singleBlockMode && <span className="text-xs font-bold">✓</span>}
+            </div>
+            <div>
+              <div className="text-sm font-medium">Tek Parça Çıktı</div>
+              <div className="text-xs text-muted-foreground">
+                Tüm içerikler düzenlenebilir tek bir alanda gösterilir
+              </div>
+            </div>
+          </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "İçerik Oluşturuluyor..." : "İçerik Oluştur"}

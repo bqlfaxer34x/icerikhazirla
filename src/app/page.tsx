@@ -43,6 +43,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [currentKeyword, setCurrentKeyword] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  const [singleBlockMode, setSingleBlockMode] = useState(false);
+  const [singleBlockContent, setSingleBlockContent] = useState("");
 
   // Chrome sekmesinde keyword göster
   useEffect(() => {
@@ -60,6 +62,11 @@ export default function Home() {
   const handleGenerate = async (formData: FormData) => {
     setIsLoading(true);
     setError(null);
+    setSingleBlockMode(formData.singleBlockMode);
+
+    if (formData.singleBlockMode) {
+      setSingleBlockContent("");
+    }
 
     const BATCH_SIZE = 10;
     const totalCount = formData.totalCount;
@@ -146,20 +153,33 @@ export default function Home() {
             throw new Error(result.error || "Bir hata oluştu");
           }
 
-          // Yeni içerikleri benzersiz ID'lerle ekle
-          const newItems: ContentItem[] = result.data.items.map((content: string) => ({
-            id: generateUniqueId(),
-            content,
-            type: formData.contentType,
-            groupId,
-          }));
+          // Yeni içerikleri işle
+          if (formData.singleBlockMode) {
+            // Tek parça modunda: içerikleri text olarak birleştir
+            const newContent = result.data.items.map((content: string) => {
+              // HTML linklerini plain text'e çevir ama linki koru
+              return content
+                .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
+                .replace(/<[^>]+>/g, '');
+            }).join("\n\n");
 
-          // Gruba yeni içerikleri ekle
-          setGroups(prev => prev.map(g =>
-            g.id === groupId
-              ? { ...g, items: [...g.items, ...newItems] }
-              : g
-          ));
+            setSingleBlockContent(prev => prev + (prev ? "\n\n" : "") + newContent);
+          } else {
+            // Normal mod: kartlar halinde göster
+            const newItems: ContentItem[] = result.data.items.map((content: string) => ({
+              id: generateUniqueId(),
+              content,
+              type: formData.contentType,
+              groupId,
+            }));
+
+            // Gruba yeni içerikleri ekle
+            setGroups(prev => prev.map(g =>
+              g.id === groupId
+                ? { ...g, items: [...g.items, ...newItems] }
+                : g
+            ));
+          }
 
           // İlerleme güncelle
           const newCompleted = (i + 1) * BATCH_SIZE;
@@ -283,8 +303,14 @@ export default function Home() {
 
           <main>
             {error && (
-              <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg mb-4">
-                {error}
+              <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg mb-4 flex items-center justify-between">
+                <span>{error}</span>
+                <button
+                  onClick={() => setError(null)}
+                  className="ml-4 text-destructive hover:text-destructive/80 font-bold text-lg"
+                >
+                  ×
+                </button>
               </div>
             )}
 
@@ -423,7 +449,65 @@ export default function Home() {
               </div>
             )}
 
-            {activeGroup && activeGroup.items.length > 0 && (
+            {/* Tek Parça Modu */}
+            {singleBlockMode && singleBlockContent && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Düzenlenebilir İçerik</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(singleBlockContent);
+                      }}
+                    >
+                      Tümünü Kopyala
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const blob = new Blob([singleBlockContent], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `icerikler_${new Date().toISOString().slice(0,10)}.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      TXT İndir
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("Tüm içerik silinecek. Emin misiniz?")) {
+                          setSingleBlockContent("");
+                        }
+                      }}
+                    >
+                      Temizle
+                    </Button>
+                  </div>
+                </div>
+                <textarea
+                  value={singleBlockContent}
+                  onChange={(e) => setSingleBlockContent(e.target.value)}
+                  className="w-full h-[500px] p-4 border rounded-lg font-mono text-sm bg-background resize-y focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="İçerikler burada görünecek..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  {singleBlockContent.split(/\n\n+/).filter(p => p.trim()).length} paragraf • {singleBlockContent.length} karakter
+                </p>
+              </div>
+            )}
+
+            {/* Normal Mod - Kartlar */}
+            {!singleBlockMode && activeGroup && activeGroup.items.length > 0 && (
               <ContentOutput
                 items={activeGroup.items}
                 onDeleteItem={handleDeleteItem}
@@ -431,7 +515,7 @@ export default function Home() {
               />
             )}
 
-            {groups.length === 0 && !isLoading && !error && (
+            {groups.length === 0 && !singleBlockContent && !isLoading && !error && (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <p>
                   Formu doldurup &quot;İçerik Oluştur&quot; butonuna tıklayın
