@@ -26,7 +26,13 @@ async function fetchUrlContent(url: string): Promise<string> {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (response.status === 429) {
+        throw new Error("Site çok fazla istek nedeniyle engelledi. Lütfen birkaç dakika bekleyip tekrar deneyin veya tanımı manuel girin.");
+      }
+      if (response.status === 403) {
+        throw new Error("Site erişimi engelledi. Bu site otomatik analizi desteklemiyor olabilir. Lütfen tanımı manuel girin.");
+      }
+      throw new Error(`Site erişim hatası (HTTP ${response.status}). Lütfen tanımı manuel girin.`);
     }
 
     const html = await response.text();
@@ -134,6 +140,33 @@ export async function POST(request: NextRequest) {
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
       return NextResponse.json(
         { success: false, error: "Geçersiz URL formatı. http:// veya https:// ile başlamalı." },
+        { status: 400 }
+      );
+    }
+
+    // Sosyal medya sitelerini kontrol et
+    const socialMediaDomains = [
+      "instagram.com",
+      "facebook.com",
+      "twitter.com",
+      "x.com",
+      "tiktok.com",
+      "linkedin.com",
+      "youtube.com",
+      "pinterest.com",
+      "snapchat.com",
+      "reddit.com",
+    ];
+
+    const urlLower = url.toLowerCase();
+    const isSocialMedia = socialMediaDomains.some(domain => urlLower.includes(domain));
+
+    if (isSocialMedia) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sosyal medya siteleri (Instagram, Facebook, vb.) otomatik analizi desteklemez. Lütfen işletme tanımını manuel olarak girin."
+        },
         { status: 400 }
       );
     }
