@@ -124,7 +124,7 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
       const response = await fetch("/api/describe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, language }),
       });
 
       const result = await response.json();
@@ -349,19 +349,17 @@ export function ContentForm({ onGenerate, isLoading }: ContentFormProps) {
 
           {/* Tek Parça Modu */}
           <div
-            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-              singleBlockMode
+            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${singleBlockMode
                 ? "bg-primary/10 border-primary"
                 : "bg-muted/30 border-transparent hover:border-muted-foreground/20"
-            }`}
+              }`}
             onClick={() => setSingleBlockMode(!singleBlockMode)}
           >
             <div
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                singleBlockMode
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${singleBlockMode
                   ? "bg-primary border-primary text-primary-foreground"
                   : "border-muted-foreground/50"
-              }`}
+                }`}
             >
               {singleBlockMode && <span className="text-xs font-bold">✓</span>}
             </div>

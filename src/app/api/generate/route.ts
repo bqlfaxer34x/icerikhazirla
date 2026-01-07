@@ -3,6 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 const DEEPSEEK_API_KEY = "sk-9886e341072247268c3ba69451c5773f";
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 
+// Türkçe dil adlarını AI için İngilizce kodlara çevir
+const languageMap: Record<string, string> = {
+  "Türkçe": "Turkish",
+  "İngilizce": "English",
+  "Almanca": "German",
+  "Fransızca": "French",
+  "İspanyolca": "Spanish",
+  "İtalyanca": "Italian",
+  "Portekizce": "Portuguese",
+  "Rusça": "Russian",
+  "Arapça": "Arabic",
+  "Japonca": "Japanese",
+  "Korece": "Korean",
+  "Çince": "Chinese"
+};
+
 interface GenerateRequest {
   url: string;
   keyword: string;
@@ -39,7 +55,7 @@ async function generateContent(prompt: string): Promise<string> {
         {
           role: "system",
           content:
-            "Sen bir SEO ve içerik uzmanısın. Geri bağlantı içerikleri oluşturuyorsun. Verilen URL ve anahtar kelimeyi kullanarak doğal, özgün içerikler üret. Her içerikte anahtar kelimeyi HTML link olarak göm. Sadece istenen içerikleri yaz, başka açıklama veya başlık ekleme. Belirtilen kelime sayısına kesinlikle uy.",
+            "You are an SEO and content expert. Generate backlink content in the specified language. Create natural, original content using the given URL and keyword. Embed the keyword as an HTML link in each piece of content. Write only the requested content, no additional explanations or titles. Strictly adhere to the specified word count.",
         },
         {
           role: "user",
@@ -70,51 +86,53 @@ function getPromptForType(
   batchSize: number,
   wordCount: number
 ): string {
+  const targetLanguage = languageMap[language] || language;
+
   const baseInfo = `
-Dil: ${language}
-Marka: ${brand}
-İşletme: ${description}
-Link: ${linkHtml}
-Üretilecek içerik sayısı: ${batchSize}
-Her içerik tam olarak ${wordCount} kelime olmalı (bu kurala kesinlikle uy!)
+Target Language: ${targetLanguage}
+Brand: ${brand}
+Business Description: ${description}
+Link to insert: ${linkHtml}
+Number of contents to generate: ${batchSize}
+Each content must be EXACTLY ${wordCount} words (strictly follow this rule!)
 `;
 
   const prompts: Record<string, string> = {
     forum: `${baseInfo}
-Bu bilgileri kullanarak forum ve yorum bölümlerinde kullanılabilecek ${batchSize} farklı doğal yorum metni yaz.
-Her yorum TAM OLARAK ${wordCount} kelime olmalı. Kelime sayısına kesinlikle uy!
-İçinde "${keyword}" kelimesi yerine şu HTML linki kullan: ${linkHtml}
-Yorumlar doğal ve spam gibi görünmemeli. Sadece içerikleri yaz, başka açıklama ekleme.
-Her yorumu --- ile ayır.`,
+Generate ${batchSize} different natural comment texts that can be used in forums and comment sections in ${targetLanguage}.
+Each comment must be EXACTLY ${wordCount} words. Strictly adhere to the word count!
+Use this HTML link instead of the keyword "${keyword}": ${linkHtml}
+Comments should be natural and not look like spam. Write only the content, no additional explanations.
+Separate each comment with ---`,
 
     bio: `${baseInfo}
-Web sitesi profil sayfaları, "Hakkında" bölümleri ve bio alanları için ${batchSize} farklı tanıtım metni yaz.
-Her metin TAM OLARAK ${wordCount} kelime olmalı.
-İçinde "${keyword}" kelimesi yerine şu HTML linki kullan: ${linkHtml}
+Generate ${batchSize} different bio/about texts for website profile pages and about sections in ${targetLanguage}.
+Each text must be EXACTLY ${wordCount} words.
+Use this HTML link instead of the keyword "${keyword}": ${linkHtml}
 
-KURALLAR:
-- "Biz", "Ben", "Firmamız" gibi 1. şahıs zamirleri KULLANMA
-- Marka adını 3. şahıs olarak kullan (örn: "${brand}, sektörde...")
-- Yorum veya forum yazısı tarzında YAZMA
-- Doğal, akıcı ve kaliteli bir dil kullan
-- Marka kimliğini destekleyen, profesyonel ama yapay olmayan içerik üret
-- Sadece bilgi ver, soru sorma veya tavsiye verme
+RULES:
+- Do NOT use first-person pronouns (I, We, Our, Us)
+- Use the brand name in third person (e.g., "${brand} is a leading...")
+- Do NOT write in comment or forum style
+- Use natural, fluent, and quality language
+- Create professional but not artificial content that supports brand identity
+- Only provide information, do not ask questions or give advice
 
-Sadece içerikleri yaz. Her metni --- ile ayır.`,
+Write only the content. Separate each text with ---`,
 
     article: `${baseInfo}
-Bu bilgileri kullanarak blog veya makale içinde kullanılabilecek ${batchSize} farklı paragraf yaz.
-Her paragraf TAM OLARAK ${wordCount} kelime olmalı. Kelime sayısına kesinlikle uy!
-İçinde "${keyword}" kelimesi yerine şu HTML linki kullan: ${linkHtml}
-Paragraflar bilgilendirici ve doğal olmalı. Sadece içerikleri yaz, başka açıklama ekleme.
-Her paragrafı --- ile ayır.`,
+Generate ${batchSize} different paragraphs that can be used in blog posts or articles in ${targetLanguage}.
+Each paragraph must be EXACTLY ${wordCount} words. Strictly adhere to the word count!
+Use this HTML link instead of the keyword "${keyword}": ${linkHtml}
+Paragraphs should be informative and natural. Write only the content, no additional explanations.
+Separate each paragraph with ---`,
 
     social: `${baseInfo}
-Bu bilgileri kullanarak sosyal medya paylaşımlarında kullanılabilecek ${batchSize} farklı metin yaz.
-Her metin TAM OLARAK ${wordCount} kelime olmalı. Kelime sayısına kesinlikle uy!
-İçinde "${keyword}" kelimesi yerine şu HTML linki kullan: ${linkHtml}
-Metinler dikkat çekici ve paylaşılabilir olmalı. Sadece içerikleri yaz, başka açıklama ekleme.
-Her metni --- ile ayır.`,
+Generate ${batchSize} different texts that can be used in social media posts in ${targetLanguage}.
+Each text must be EXACTLY ${wordCount} words. Strictly adhere to the word count!
+Use this HTML link instead of the keyword "${keyword}": ${linkHtml}
+Texts should be attention-grabbing and shareable. Write only the content, no additional explanations.
+Separate each text with ---`,
   };
 
   return prompts[type] || prompts.forum;

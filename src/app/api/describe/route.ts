@@ -3,8 +3,25 @@ import { NextRequest, NextResponse } from "next/server";
 const DEEPSEEK_API_KEY = "sk-9886e341072247268c3ba69451c5773f";
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 
+// Türkçe dil adlarını AI için İngilizce kodlara çevir
+const languageMap: Record<string, string> = {
+  "Türkçe": "Turkish",
+  "İngilizce": "English",
+  "Almanca": "German",
+  "Fransızca": "French",
+  "İspanyolca": "Spanish",
+  "İtalyanca": "Italian",
+  "Portekizce": "Portuguese",
+  "Rusça": "Russian",
+  "Arapça": "Arabic",
+  "Japonca": "Japanese",
+  "Korece": "Korean",
+  "Çince": "Chinese"
+};
+
 interface DescribeRequest {
   url: string;
+  language: string;
 }
 
 async function fetchUrlContent(url: string): Promise<string> {
@@ -89,7 +106,9 @@ ${textContent.slice(0, 4000)}
   }
 }
 
-async function generateDescription(content: string, url: string): Promise<string> {
+async function generateDescription(content: string, url: string, language: string): Promise<string> {
+  const targetLanguage = languageMap[language] || language;
+
   const response = await fetch(DEEPSEEK_API_URL, {
     method: "POST",
     headers: {
@@ -102,7 +121,7 @@ async function generateDescription(content: string, url: string): Promise<string
         {
           role: "system",
           content:
-            "Sen bir işletme analisti ve SEO uzmanısın. Verilen web sitesi içeriğinden işletmenin ne yaptığını, hangi hizmetleri/ürünleri sunduğunu analiz edip kısa ve öz bir işletme tanımı oluştur. Tanım 2-4 cümle olsun, Türkçe ve SEO dostu olsun. Sadece tanımı yaz, başka açıklama ekleme.",
+            `You are a business analyst and SEO expert. Analyze the website content and create a brief business description in ${targetLanguage}. The description should be 2-4 sentences, SEO-friendly. Write only the description, no additional explanations.`,
         },
         {
           role: "user",
@@ -127,7 +146,7 @@ async function generateDescription(content: string, url: string): Promise<string
 export async function POST(request: NextRequest) {
   try {
     const body: DescribeRequest = await request.json();
-    const { url } = body;
+    const { url, language } = body;
 
     if (!url) {
       return NextResponse.json(
@@ -185,8 +204,8 @@ export async function POST(request: NextRequest) {
 
     console.log("Content length:", content.length);
 
-    // DeepSeek ile tanım oluştur
-    const description = await generateDescription(content, url);
+    // DeepSeek ile tanım oluştur (dil parametresi ile)
+    const description = await generateDescription(content, url, language || "Türkçe");
 
     return NextResponse.json({
       success: true,
