@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEEPSEEK_API_KEY = "sk-9886e341072247268c3ba69451c5773f";
+const DEEPSEEK_API_KEY = "sk-072238e344c04e7bb45a42741e88b16a";
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 
 // Türkçe dil adlarını AI için İngilizce kodlara çevir
